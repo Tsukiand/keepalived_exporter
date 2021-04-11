@@ -95,8 +95,10 @@ func NewKACollector(useJSON bool) (*KACollector, error) {
 	coll.useJSON = useJSON
 
 	labelsVrrp := []string{"name", "intf", "vrid", "state"}
+	labelsMaster := []string{"name"}
 	metrics := map[string]*prometheus.Desc{
 		"keepalived_up":                       prometheus.NewDesc("keepalived_up", "Status", nil, nil),
+		"keepalived_is_master":                prometheus.NewDesc("keepalived_is_master", "Master state", labelsMaster, nil),
 		"keepalived_vrrp_advert_rcvd":         prometheus.NewDesc("keepalived_vrrp_advert_rcvd", "Advertisements received", labelsVrrp, nil),
 		"keepalived_vrrp_advert_sent":         prometheus.NewDesc("keepalived_vrrp_advert_sent", "Advertisements sent", labelsVrrp, nil),
 		"keepalived_vrrp_become_master":       prometheus.NewDesc("keepalived_vrrp_become_master", "Became master", labelsVrrp, nil),
@@ -172,7 +174,14 @@ func (k *KACollector) Collect(ch chan<- prometheus.Metric) {
 		if _, ok := state2string[st.Data.State]; ok {
 			state = state2string[st.Data.State]
 		}
+		master := 0
+		if state == "MASTER" {
+			master = 1
+		} else {
+			master = 0
+		}
 
+		ch <- prometheus.MustNewConstMetric(k.metrics["keepalived_is_master"], prometheus.GaugeValue, float64(master), st.Data.Iname)
 		ch <- prometheus.MustNewConstMetric(k.metrics["keepalived_vrrp_advert_rcvd"], prometheus.CounterValue,
 			float64(st.Stats.AdvertRcvd), st.Data.Iname, st.Data.IfpIfname, strconv.Itoa(st.Data.Vrid), state)
 		ch <- prometheus.MustNewConstMetric(k.metrics["keepalived_vrrp_advert_sent"], prometheus.CounterValue,
